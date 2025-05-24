@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "AmbientVibe",
+  "version": "1.0.0",
+  "description": "Add reverb effects to audio/video elements on web pages",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "popups/main/main.html",
+    "default_icon": {
+      "16": "images/logo.png",
+      "48": "images/logo.png",
+      "128": "images/logo.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-scripts/initialize.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["audio/*"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "icons": {
+    "16": "images/logo.png",
+    "48": "images/logo.png",
+    "128": "images/logo.png"
+  }
+}

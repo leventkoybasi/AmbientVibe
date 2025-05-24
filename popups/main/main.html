@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>AmbientVibe</title>
+    <link rel="stylesheet" href="main.css" />
+  </head>
+  <body>
+    <div class="container">
+      <button class="close-btn" title="Close">&times;</button>
+      <header>
+        <div class="logo-title">
+          <img src="../../images/ambientvibe.png" alt="AmbientVibe Logo" class="logo-img" />
+          <h1 class="main-title">AmbientVibe</h1>
+        </div>
+      </header>
+      <h2 class="section-title">Presets</h2>
+      <form id="preset-form">
+        <div id="controls-area">
+          <div class="preset-list">
+            <label class="preset-card">
+              <input type="radio" name="preset" value="smallRoom" />
+              <span>Small Room</span>
+              <span class="custom-radio"></span>
+            </label>
+            <label class="preset-card">
+              <input type="radio" name="preset" value="largeRoom" />
+              <span>Large Room</span>
+              <span class="custom-radio"></span>
+            </label>
+            <label class="preset-card">
+              <input type="radio" name="preset" value="concertHall" />
+              <span>Concert Hall</span>
+              <span class="custom-radio"></span>
+            </label>
+            <label class="preset-card">
+              <input type="radio" name="preset" value="ambientWash" />
+              <span>Ambient Wash</span>
+              <span class="custom-radio"></span>
+            </label>
+            <label class="preset-card">
+              <input type="radio" name="preset" value="moonlightChamber" />
+              <span>Moonlight Chamber</span>
+              <span class="custom-radio"></span>
+            </label>
+          </div>
+          <div class="slider-row">
+            <label for="reverb-slider">Reverb Intensity</label>
+            <span id="reverb-value">50%</span>
+          </div>
+          <input type="range" min="0" max="100" value="50" id="reverb-slider" />
+          <div class="theme-row">
+            <span>Theme</span>
+            <label class="theme-switch">
+              <input type="checkbox" id="theme-toggle" />
+              <span class="theme-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="onoff-row">
+          <span class="onoff-label">AmbientVibe</span>
+          <label class="onoff-switch">
+            <input type="checkbox" id="onoff-toggle" checked />
+            <span class="onoff-slider"></span>
+          </label>
+        </div>
+      </form>
+    </div>
+    <script src="main.js"></script>
+  </body>
+</html>
