@@ -8,9 +8,9 @@
   "action": {
     "default_popup": "popups/main/main.html",
     "default_icon": {
-      "16": "images/logo.png",
-      "48": "images/logo.png",
-      "128": "images/logo.png"
+      "16": "images/ambientvibe.png",
+      "48": "images/ambientvibe.png",
+      "128": "images/ambientvibe.png"
     }
   },
   "content_scripts": [
@@ -26,8 +26,8 @@
     }
   ],
   "icons": {
-    "16": "images/logo.png",
-    "48": "images/logo.png",
-    "128": "images/logo.png"
+    "16": "images/ambientvibe.png",
+    "48": "images/ambientvibe.png",
+    "128": "images/ambientvibe.png"
   }
 }

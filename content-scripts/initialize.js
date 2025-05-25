@@ -22,47 +22,89 @@ let currentWetMix = presets[currentPreset].reverbWetMix;
 // Initialize audio context and nodes
 async function initializeAudioContext(mediaElement) {
   if (!audioContext) {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    // Use highest quality audio context settings for production
+    audioContext = new (window.AudioContext || window.webkitAudioContext)({
+      sampleRate: 48000, // Professional audio sample rate
+      latencyHint: 'playback', // Optimized for audio quality over latency
+    });
   }
 
   if (!convolverNode) {
     convolverNode = audioContext.createConvolver();
-    // Load impulse response
+    // Enable normalization for consistent volume and quality
+    convolverNode.normalize = true;
+
+    // Load impulse response with error handling
     try {
       const response = await fetch(chrome.runtime.getURL('audio/large-studio-room.wav'));
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
       convolverNode.buffer = audioBuffer;
+      console.log(
+        'AmbientVibe: High-quality IR loaded successfully',
+        `${audioBuffer.duration.toFixed(2)}s, ${audioBuffer.sampleRate}Hz, ${
+          audioBuffer.numberOfChannels
+        } channels`
+      );
     } catch (error) {
-      console.error('Error loading impulse response:', error);
+      console.error('AmbientVibe: Error loading impulse response:', error);
+      return; // Don't continue if IR fails to load
     }
   }
 
-  // Create gain nodes
-  dryGainNode = audioContext.createGain();
-  wetGainNode = audioContext.createGain();
+  // Create high-quality gain nodes with smooth transitions
+  if (!dryGainNode) {
+    dryGainNode = audioContext.createGain();
+    dryGainNode.gain.setValueAtTime(1, audioContext.currentTime);
+  }
 
-  // Create media element source
-  mediaElementSource = audioContext.createMediaElementSource(mediaElement);
+  if (!wetGainNode) {
+    wetGainNode = audioContext.createGain();
+    wetGainNode.gain.setValueAtTime(0, audioContext.currentTime);
+  }
 
-  // Connect nodes
-  mediaElementSource.connect(dryGainNode);
-  mediaElementSource.connect(convolverNode);
-  convolverNode.connect(wetGainNode);
-  dryGainNode.connect(audioContext.destination);
-  wetGainNode.connect(audioContext.destination);
+  // Avoid multiple connections to the same element
+  if (mediaElement.ambientVibeConnected) {
+    return;
+  }
 
-  // Set initial gains
-  updateReverbMix();
+  try {
+    // Create media element source with error handling
+    mediaElementSource = audioContext.createMediaElementSource(mediaElement);
+    mediaElement.ambientVibeConnected = true;
+
+    // Connect nodes for parallel dry/wet processing (preserves original audio quality)
+    mediaElementSource.connect(dryGainNode);
+    mediaElementSource.connect(convolverNode);
+    convolverNode.connect(wetGainNode);
+
+    // Mix dry and wet signals to destination
+    dryGainNode.connect(audioContext.destination);
+    wetGainNode.connect(audioContext.destination);
+
+    // Set initial gains
+    updateReverbMix();
+
+    console.log('AmbientVibe: High-quality audio processing initialized');
+  } catch (error) {
+    console.error('AmbientVibe: Error connecting audio nodes:', error);
+    mediaElement.ambientVibeConnected = false;
+  }
 }
 
-// Update reverb mix based on current preset
+// Update reverb mix based on current preset with smooth transitions
 function updateReverbMix() {
-  if (!dryGainNode || !wetGainNode) return;
+  if (!dryGainNode || !wetGainNode || !audioContext) return;
 
+  const currentTime = audioContext.currentTime;
   const wetMix = currentWetMix;
-  dryGainNode.gain.value = 1 - wetMix;
-  wetGainNode.gain.value = wetMix;
+
+  // Smooth gain transitions to avoid clicks
+  dryGainNode.gain.exponentialRampToValueAtTime(Math.max(0.001, 1 - wetMix), currentTime + 0.1);
+  wetGainNode.gain.exponentialRampToValueAtTime(Math.max(0.001, wetMix), currentTime + 0.1);
 }
 
 // Find and process media elements
@@ -79,27 +121,45 @@ function processMediaElements() {
 
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  switch (request.action) {
-    case 'setPreset':
-      currentPreset = request.preset;
-      currentWetMix =
-        typeof request.reverbWetMix === 'number'
-          ? request.reverbWetMix
-          : presets[currentPreset].reverbWetMix;
-      updateReverbMix();
-      break;
-    case 'toggleEnabled':
-      isEnabled = !isEnabled;
-      if (audioContext) {
-        if (isEnabled) {
-          audioContext.resume();
-        } else {
-          audioContext.suspend();
+  try {
+    switch (request.action) {
+      case 'setPreset':
+        currentPreset = request.preset;
+        currentWetMix =
+          typeof request.reverbWetMix === 'number'
+            ? request.reverbWetMix
+            : presets[currentPreset].reverbWetMix;
+        updateReverbMix();
+        console.log('AmbientVibe: Preset changed to', currentPreset, 'wet mix:', currentWetMix);
+        break;
+      case 'toggleEnabled':
+        isEnabled = request.enabled !== undefined ? request.enabled : !isEnabled;
+        if (audioContext) {
+          if (isEnabled) {
+            audioContext.resume().then(() => {
+              console.log('AmbientVibe: Audio context resumed');
+            });
+          } else {
+            audioContext.suspend().then(() => {
+              console.log('AmbientVibe: Audio context suspended');
+            });
+          }
         }
-      }
-      break;
+        break;
+      case 'updateIntensity':
+        if (typeof request.intensity === 'number') {
+          currentWetMix = request.intensity / 100;
+          updateReverbMix();
+          console.log('AmbientVibe: Intensity updated to', request.intensity + '%');
+        }
+        break;
+    }
+    sendResponse({ success: true, state: { isEnabled, currentPreset, currentWetMix } });
+  } catch (error) {
+    console.error('AmbientVibe: Error handling message:', error);
+    sendResponse({ success: false, error: error.message });
   }
-  sendResponse({ success: true });
+  return true; // Keep message channel open for async response
 });
 
 // Initial processing

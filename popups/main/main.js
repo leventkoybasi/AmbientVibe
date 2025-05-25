@@ -69,13 +69,45 @@ function saveSettings() {
 
 // Send settings to content script
 async function sendSettingsToContentScript() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab) {
-    chrome.tabs.sendMessage(tab.id, {
-      action: isOn ? 'setPreset' : 'toggleEnabled',
-      preset: currentPreset,
-      reverbWetMix: reverbIntensity / 100,
-    });
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab && tab.id) {
+      // Send enable/disable message
+      await chrome.tabs.sendMessage(tab.id, {
+        action: 'toggleEnabled',
+        enabled: isOn,
+      });
+
+      // If enabled, send preset and intensity
+      if (isOn) {
+        await chrome.tabs.sendMessage(tab.id, {
+          action: 'setPreset',
+          preset: currentPreset,
+          reverbWetMix: reverbIntensity / 100,
+        });
+      }
+
+      console.log('AmbientVibe: Settings sent to content script');
+    }
+  } catch (error) {
+    console.error('AmbientVibe: Error sending settings:', error);
+  }
+}
+
+// Send real-time intensity updates
+async function sendIntensityUpdate() {
+  if (!isOn) return;
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab && tab.id) {
+      await chrome.tabs.sendMessage(tab.id, {
+        action: 'updateIntensity',
+        intensity: reverbIntensity,
+      });
+    }
+  } catch (error) {
+    console.error('AmbientVibe: Error sending intensity update:', error);
   }
 }
 
