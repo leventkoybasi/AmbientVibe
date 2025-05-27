@@ -42,6 +42,9 @@
     },
   };
 
+  // AudioContext önce tanımlanmalı
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
   const dryGain = audioContext.createGain();
   dryGain.connect(audioContext.destination);
 
@@ -71,7 +74,6 @@
     return findRootElement(htmlElement.parentElement);
   };
 
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   let audioContextInitialized = false;
 
   const initializeAudioContext = async () => {
