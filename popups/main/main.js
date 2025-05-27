@@ -135,6 +135,7 @@ reverbSlider.addEventListener('change', () => {
 themeToggle.addEventListener('change', () => {
   isLightTheme = themeToggle.checked;
   document.body.setAttribute('data-theme', isLightTheme ? 'light' : 'dark');
+  saveSettings();
 });
 
 onoffToggle.addEventListener('change', async () => {
