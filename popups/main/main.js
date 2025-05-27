@@ -73,17 +73,16 @@ async function sendSettingsToContentScript() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab && tab.id) {
       // Send enable/disable message
-      await chrome.tabs.sendMessage(tab.id, {
+      const enableResponse = await chrome.tabs.sendMessage(tab.id, {
         action: 'toggleEnabled',
         enabled: isOn,
       });
 
-      // If enabled, send preset and intensity
+      // If enabled, send preset
       if (isOn) {
-        await chrome.tabs.sendMessage(tab.id, {
+        const presetResponse = await chrome.tabs.sendMessage(tab.id, {
           action: 'setPreset',
           preset: currentPreset,
-          reverbWetMix: reverbIntensity / 100,
         });
       }
 
@@ -113,16 +112,24 @@ async function sendIntensityUpdate() {
 
 // Event listeners
 presetRadios.forEach((radio) => {
-  radio.addEventListener('change', () => {
+  radio.addEventListener('change', async () => {
     currentPreset = radio.value;
     reverbIntensity = presetDefaults[currentPreset];
     updateUI();
+    saveSettings();
+    await sendSettingsToContentScript();
   });
 });
 
-reverbSlider.addEventListener('input', () => {
+reverbSlider.addEventListener('input', async () => {
   reverbIntensity = parseInt(reverbSlider.value, 10);
   reverbValue.textContent = reverbIntensity + '%';
+  await sendIntensityUpdate();
+});
+
+// Also save when slider changes are finished
+reverbSlider.addEventListener('change', () => {
+  saveSettings();
 });
 
 themeToggle.addEventListener('change', () => {
@@ -158,3 +165,9 @@ closeBtn.addEventListener('click', () => {
 
 // Başlangıçta yükle
 loadSettings();
+
+// Send initial settings to content script when popup opens
+setTimeout(async () => {
+  await sendSettingsToContentScript();
+  console.log('AmbientVibe: Initial settings sent to content script');
+}, 100);
