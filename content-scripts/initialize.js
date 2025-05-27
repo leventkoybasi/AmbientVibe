@@ -175,6 +175,11 @@
     });
   };
 
+  const updateReverbWetMix = (wetMix) => {
+    wetGain.gain.value = wetMix;
+    dryGain.gain.value = 1 - wetMix;
+  };
+
   const updateConvolver = async () => {
     if (convolverNode) {
       convolverNode.disconnect();
