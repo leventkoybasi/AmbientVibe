@@ -6,39 +6,74 @@
   const PRE_DELAY_SECONDS = 0.01;
   const CHANNEL_COUNT = 2;
 
-  // Create reverb buffer programmatically
-  const createWhiteNoiseBuffer = (audioContext) => {
-    const buffer = audioContext.createBuffer(
-      CHANNEL_COUNT,
-      (DECAY_TIME_SECONDS + PRE_DELAY_SECONDS) * audioContext.sampleRate,
-      audioContext.sampleRate
-    );
-    for (let channelNum = 0; channelNum < CHANNEL_COUNT; channelNum++) {
-      const channelData = buffer.getChannelData(channelNum);
-      for (let i = 0; i < channelData.length; i++) {
-        channelData[i] = Math.random() * 2 - 1;
-      }
-    }
-    return buffer;
+  // IR dosya yolları ve preset eşleşmeleri
+  const IR_FILES = {
+    intimateRoom: 'audio/m7-small-room.wav',
+    studioRoom: 'audio/m7-large-room.wav',
+    grandHall: 'audio/m7-large-hall.wav',
+    lushPlate: 'audio/m7-plate.wav',
+    velvetChamber: 'audio/m7-chamber.wav',
   };
 
-  const createConvolver = async (audioContext) => {
-    const offlineContext = new OfflineAudioContext(
-      2,
-      (DECAY_TIME_SECONDS + PRE_DELAY_SECONDS) * audioContext.sampleRate,
-      audioContext.sampleRate
-    );
-    const bufferSource = offlineContext.createBufferSource();
-    bufferSource.buffer = createWhiteNoiseBuffer(offlineContext);
-    const gain = offlineContext.createGain();
-    gain.gain.setValueAtTime(0, 0);
-    gain.gain.setValueAtTime(1, PRE_DELAY_SECONDS);
-    gain.gain.exponentialRampToValueAtTime(0.00001, DECAY_TIME_SECONDS + PRE_DELAY_SECONDS);
-    bufferSource.connect(gain);
-    gain.connect(offlineContext.destination);
+  // Presetler: Daha gerçekçi, müzik dostu ve abartısız ayarlar
+  const presets = {
+    intimateRoom: {
+      label: 'Intimate Room',
+      wet: 0.13, // Hafif, doğal oda
+      dry: 0.87,
+      ir: IR_FILES.intimateRoom,
+    },
+    studioRoom: {
+      label: 'Studio Room',
+      wet: 0.22, // Modern, hafif genişlik
+      dry: 0.78,
+      ir: IR_FILES.studioRoom,
+    },
+    grandHall: {
+      label: 'Grand Hall',
+      wet: 0.32, // Geniş ama banyo/church değil
+      dry: 0.68,
+      ir: IR_FILES.grandHall,
+    },
+    lushPlate: {
+      label: 'Lush Plate',
+      wet: 0.18, // Vokal ve enstrüman için parlaklık
+      dry: 0.82,
+      ir: IR_FILES.lushPlate,
+    },
+    velvetChamber: {
+      label: 'Velvet Chamber',
+      wet: 0.25, // Yumuşak, derinlikli, ambient
+      dry: 0.75,
+      ir: IR_FILES.velvetChamber,
+    },
+  };
+
+  /*
+   * Audio Node graph:
+   *                               |-->[Dry Gain]------------------------------>|
+   * [MediaElementSourceNode(s)]-->|                                            |-->[Destination]
+   *                               |-->[Wet Input]-->[Convolver]-->[Wet Gain]-->|
+   */
+
+  const dryGain = audioContext.createGain();
+  dryGain.connect(audioContext.destination);
+
+  // Since the convolver node is created asynchronously,
+  // use a gain node as an input that can be connected to before the convolver is created.
+  const wetInputGain = audioContext.createGain();
+  wetInputGain.gain.value = 1;
+
+  const wetGain = audioContext.createGain();
+  wetGain.connect(audioContext.destination);
+
+  let convolverNode = null;
+
+  const createConvolver = async (audioContext, irPath) => {
     const convolver = audioContext.createConvolver();
-    bufferSource.start(0);
-    convolver.buffer = await offlineContext.startRendering();
+    const response = await fetch(chrome.runtime.getURL(irPath));
+    const arrayBuffer = await response.arrayBuffer();
+    convolver.buffer = await audioContext.decodeAudioData(arrayBuffer);
     return convolver;
   };
 
@@ -86,43 +121,8 @@
     isEnabled: true,
   };
 
-  // Preset configurations
-  const presets = {
-    smallRoom: { reverbWetMix: 0.2 },
-    largeRoom: { reverbWetMix: 0.4 },
-    concertHall: { reverbWetMix: 0.7 },
-    ambientWash: { reverbWetMix: 0.9 },
-    moonlightChamber: { reverbWetMix: 0.6 },
-  };
-
-  /*
-   * Audio Node graph:
-   *                               |-->[Dry Gain]------------------------------>|
-   * [MediaElementSourceNode(s)]-->|                                            |-->[Destination]
-   *                               |-->[Wet Input]-->[Convolver]-->[Wet Gain]-->|
-   */
-
-  const dryGain = audioContext.createGain();
-  dryGain.connect(audioContext.destination);
-
-  // Since the convolver node is created asynchronously,
-  // use a gain node as an input that can be connected to before the convolver is created.
-  const wetInputGain = audioContext.createGain();
-  wetInputGain.gain.value = 1;
-
-  const wetGain = audioContext.createGain();
-  wetGain.connect(audioContext.destination);
-
-  createConvolver(audioContext).then((convolverNode) => {
-    convolverNode.connect(wetGain);
-    wetInputGain.connect(convolverNode);
-    console.log('AmbientVibe: Convolver created and connected');
-  });
-
-  const mediaElementObserver = new MutationObserver(() => {
-    // Re-check media elements when DOM changes
-    updateSourceNodes();
-  });
+  // Aktif preset ve convolver yönetimi
+  let currentPresetKey = 'studioRoom';
 
   const rootElementObserver = new MutationObserver((mutations) => {
     if (
@@ -218,31 +218,22 @@
     });
   };
 
-  const updateReverbWetMix = (newReverbWetMix) => {
-    settings.reverbWetMix = newReverbWetMix;
-    if (!settings.isEnabled) {
-      dryGain.gain.value = 1;
-      wetGain.gain.value = 0;
-      return;
+  const updateConvolver = async () => {
+    if (convolverNode) {
+      convolverNode.disconnect();
     }
-    dryGain.gain.value = 1 - newReverbWetMix;
-    wetGain.gain.value = newReverbWetMix;
-    console.log(
-      'AmbientVibe: Reverb mix updated - Dry:',
-      (1 - newReverbWetMix).toFixed(2),
-      'Wet:',
-      newReverbWetMix.toFixed(2)
-    );
+    const preset = presets[currentPresetKey];
+    convolverNode = await createConvolver(audioContext, preset.ir);
+    wetInputGain.disconnect();
+    wetInputGain.connect(convolverNode);
+    convolverNode.connect(wetGain);
+    dryGain.gain.value = preset.dry;
+    wetGain.gain.value = preset.wet;
+    console.log('AmbientVibe: Convolver & preset updated:', preset.label);
   };
 
-  const updateEnabled = (enabled) => {
-    settings.isEnabled = enabled;
-    updateReverbWetMix(settings.reverbWetMix);
-    if (enabled) {
-      updateSourceNodes();
-    }
-    console.log('AmbientVibe: Effect', enabled ? 'enabled' : 'disabled');
-  };
+  // Başlangıçta preset yükle
+  updateConvolver();
 
   // Initialize - wait for user interaction before processing
   updateReverbWetMix(settings.reverbWetMix);
@@ -289,6 +280,16 @@
       sendResponse({ success: false, error: error.message });
     }
     return true; // Keep message channel open for async response
+  });
+
+  // Preset değişimi için mesaj dinleyici
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'setPreset' && presets[request.preset]) {
+      currentPresetKey = request.preset;
+      updateConvolver();
+      sendResponse({ success: true });
+      return true;
+    }
   });
 
   // Initial processing

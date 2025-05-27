@@ -1,0 +1,44 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# VS Code
+.vscode/
+.history/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build / dist
+/dist/
+/build/
+*.crx
+*.zip
+*.pem
+
+# Logs
+*.log
+
+# Chrome Extension
+*.local.json
+*.dev.json
+*.bak
+
+# Personal
+*.swp
+*.swo
+
+# System
+Thumbs.db
+desktop.ini
+
+# Ignore audio source files if not needed in repo
+# audio/*.wav
