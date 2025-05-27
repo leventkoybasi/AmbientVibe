@@ -127,7 +127,6 @@ reverbSlider.addEventListener('input', async () => {
   await sendIntensityUpdate();
 });
 
-// Also save when slider changes are finished
 reverbSlider.addEventListener('change', () => {
   saveSettings();
 });
@@ -141,10 +140,8 @@ themeToggle.addEventListener('change', () => {
 onoffToggle.addEventListener('change', async () => {
   isOn = onoffToggle.checked;
   if (!isOn) {
-    // Tüm presetleri untick et
     presetRadios.forEach((radio) => (radio.checked = false));
   } else {
-    // Açınca eski preset seçili olsun
     presetRadios.forEach((radio) => {
       radio.checked = radio.value === currentPreset;
     });
@@ -164,7 +161,6 @@ closeBtn.addEventListener('click', () => {
   window.close();
 });
 
-// Başlangıçta yükle
 loadSettings();
 
 // Send initial settings to content script when popup opens
