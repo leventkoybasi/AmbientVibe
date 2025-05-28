@@ -4,7 +4,6 @@ const reverbSlider = document.getElementById('reverb-slider');
 const reverbValue = document.getElementById('reverb-value');
 const themeToggle = document.getElementById('theme-toggle');
 const onoffToggle = document.getElementById('onoff-toggle');
-const closeBtn = document.querySelector('.close-btn');
 const controlsArea = document.getElementById('controls-area');
 const presetForm = document.getElementById('preset-form');
 
@@ -157,10 +156,6 @@ presetForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   saveSettings();
   await sendSettingsToContentScript();
-});
-
-closeBtn.addEventListener('click', () => {
-  window.close();
 });
 
 loadSettings();
