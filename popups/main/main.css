@@ -398,3 +398,44 @@ body[data-theme='light'] .preset-card.disabled {
 .preset-card {
   border: 2px solid transparent;
 }
+
+#me {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  margin: 0 auto;
+  width: fit-content;
+  z-index: 100;
+  transition: transform 0.3s cubic-bezier(0.4, 2, 0.6, 1), color 0.2s;
+  font-size: 12px;
+  font-weight: 700;
+  background: transparent;
+  border-radius: 8px;
+}
+#me a {
+  color: var(--primary-color);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+#me:hover {
+  transform: scale(1.15);
+}
+#me a:hover {
+  color: var(--primary-color-hover, #18a34a);
+}
+body[data-theme='light'] #me a {
+  color: var(--primary-light);
+}
+body[data-theme='dark'] #me a {
+  color: var(--primary-dark);
+}
+body[data-theme='violet'] #me a {
+  color: var(--primary-violet);
+}
+#me p {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
