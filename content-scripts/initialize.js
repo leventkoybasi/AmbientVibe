@@ -193,6 +193,32 @@
     wetGain.gain.value = preset.wet;
   };
 
+  const updateEnabled = (enabled) => {
+    settings.isEnabled = enabled;
+    if (!enabled) {
+      // Tüm bağlantıları kes, sadece dryGain'e bağla
+      try {
+        wetInputGain.disconnect();
+        wetGain.disconnect();
+        if (convolverNode) convolverNode.disconnect();
+      } catch (e) {}
+      dryGain.gain.value = 1;
+    } else {
+      // Zinciri tekrar kur
+      try {
+        wetInputGain.disconnect();
+        if (convolverNode) convolverNode.disconnect();
+      } catch (e) {}
+      if (convolverNode) {
+        wetInputGain.connect(convolverNode);
+        convolverNode.connect(wetGain);
+      }
+      wetGain.connect(audioContext.destination);
+      dryGain.gain.value = presets[currentPresetKey].dry;
+      wetGain.gain.value = presets[currentPresetKey].wet;
+    }
+  };
+
   updateConvolver();
   updateReverbWetMix(settings.reverbWetMix);
 
@@ -200,9 +226,14 @@
     try {
       switch (request.action) {
         case 'setPreset':
-          const preset = presets[request.preset];
-          if (preset) {
-            updateReverbWetMix(preset.reverbWetMix);
+          if (presets[request.preset]) {
+            currentPresetKey = request.preset;
+            // Preset intensity'yi uygula
+            const preset = presets[request.preset];
+            dryGain.gain.value = preset.dry;
+            wetGain.gain.value = preset.wet;
+            settings.reverbWetMix = preset.wet;
+            updateConvolver();
           }
           break;
         case 'toggleEnabled':
@@ -213,6 +244,7 @@
           if (typeof request.intensity === 'number') {
             const wetMix = request.intensity / 100;
             updateReverbWetMix(wetMix);
+            settings.reverbWetMix = wetMix;
           }
           break;
         default:

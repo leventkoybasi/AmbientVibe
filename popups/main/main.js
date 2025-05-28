@@ -115,6 +115,8 @@ presetRadios.forEach((radio) => {
   radio.addEventListener('change', async () => {
     currentPreset = radio.value;
     reverbIntensity = presetDefaults[currentPreset];
+    reverbSlider.value = reverbIntensity;
+    reverbValue.textContent = reverbIntensity + '%';
     updateUI();
     saveSettings();
     await sendSettingsToContentScript();
