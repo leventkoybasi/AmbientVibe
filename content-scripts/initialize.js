@@ -1,44 +1,66 @@
 (function () {
   'use strict';
 
-  // Reverb creation constants
-  const DECAY_TIME_SECONDS = 5;
-  const PRE_DELAY_SECONDS = 0.01;
-  const CHANNEL_COUNT = 2;
-
-  // Create reverb buffer programmatically
-  const createWhiteNoiseBuffer = (audioContext) => {
-    const buffer = audioContext.createBuffer(
-      CHANNEL_COUNT,
-      (DECAY_TIME_SECONDS + PRE_DELAY_SECONDS) * audioContext.sampleRate,
-      audioContext.sampleRate
-    );
-    for (let channelNum = 0; channelNum < CHANNEL_COUNT; channelNum++) {
-      const channelData = buffer.getChannelData(channelNum);
-      for (let i = 0; i < channelData.length; i++) {
-        channelData[i] = Math.random() * 2 - 1;
-      }
-    }
-    return buffer;
+  const IR_FILES = {
+    intimateRoom: 'audio/small-room.wav',
+    studioRoom: 'audio/large-room.wav',
+    grandHall: 'audio/large-hall.wav',
+    lushPlate: 'audio/plate.wav',
+    velvetChamber: 'audio/chamber.wav',
   };
 
-  const createConvolver = async (audioContext) => {
-    const offlineContext = new OfflineAudioContext(
-      2,
-      (DECAY_TIME_SECONDS + PRE_DELAY_SECONDS) * audioContext.sampleRate,
-      audioContext.sampleRate
-    );
-    const bufferSource = offlineContext.createBufferSource();
-    bufferSource.buffer = createWhiteNoiseBuffer(offlineContext);
-    const gain = offlineContext.createGain();
-    gain.gain.setValueAtTime(0, 0);
-    gain.gain.setValueAtTime(1, PRE_DELAY_SECONDS);
-    gain.gain.exponentialRampToValueAtTime(0.00001, DECAY_TIME_SECONDS + PRE_DELAY_SECONDS);
-    bufferSource.connect(gain);
-    gain.connect(offlineContext.destination);
+  const presets = {
+    intimateRoom: {
+      label: 'Intimate Room',
+      wet: 0.13,
+      dry: 0.87,
+      ir: IR_FILES.intimateRoom,
+    },
+    studioRoom: {
+      label: 'Studio Room',
+      wet: 0.22,
+      dry: 0.78,
+      ir: IR_FILES.studioRoom,
+    },
+    grandHall: {
+      label: 'Grand Hall',
+      wet: 0.32,
+      dry: 0.68,
+      ir: IR_FILES.grandHall,
+    },
+    lushPlate: {
+      label: 'Lush Plate',
+      wet: 0.18,
+      dry: 0.82,
+      ir: IR_FILES.lushPlate,
+    },
+    velvetChamber: {
+      label: 'Velvet Chamber',
+      wet: 0.25,
+      dry: 0.75,
+      ir: IR_FILES.velvetChamber,
+    },
+  };
+
+  // AudioContext önce tanımlanmalı
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+  const dryGain = audioContext.createGain();
+  dryGain.connect(audioContext.destination);
+
+  const wetInputGain = audioContext.createGain();
+  wetInputGain.gain.value = 1;
+
+  const wetGain = audioContext.createGain();
+  wetGain.connect(audioContext.destination);
+
+  let convolverNode = null;
+
+  const createConvolver = async (audioContext, irPath) => {
     const convolver = audioContext.createConvolver();
-    bufferSource.start(0);
-    convolver.buffer = await offlineContext.startRendering();
+    const response = await fetch(chrome.runtime.getURL(irPath));
+    const arrayBuffer = await response.arrayBuffer();
+    convolver.buffer = await audioContext.decodeAudioData(arrayBuffer);
     return convolver;
   };
 
@@ -52,23 +74,17 @@
     return findRootElement(htmlElement.parentElement);
   };
 
-  // Audio context setup - don't specify sampleRate to avoid issues
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
   let audioContextInitialized = false;
 
   const initializeAudioContext = async () => {
     if (audioContextInitialized) return true;
-
     try {
       if (audioContext.state === 'suspended') {
         await audioContext.resume();
       }
       audioContextInitialized = true;
-      console.log('AmbientVibe: AudioContext initialized');
       return true;
     } catch (error) {
-      console.error('AmbientVibe: Failed to initialize AudioContext:', error);
       return false;
     }
   };
@@ -80,49 +96,12 @@
   };
   document.addEventListener('click', handleDocumentClick);
 
-  // Settings
   const settings = {
     reverbWetMix: 0.2,
     isEnabled: true,
   };
 
-  // Preset configurations
-  const presets = {
-    smallRoom: { reverbWetMix: 0.2 },
-    largeRoom: { reverbWetMix: 0.4 },
-    concertHall: { reverbWetMix: 0.7 },
-    ambientWash: { reverbWetMix: 0.9 },
-    moonlightChamber: { reverbWetMix: 0.6 },
-  };
-
-  /*
-   * Audio Node graph:
-   *                               |-->[Dry Gain]------------------------------>|
-   * [MediaElementSourceNode(s)]-->|                                            |-->[Destination]
-   *                               |-->[Wet Input]-->[Convolver]-->[Wet Gain]-->|
-   */
-
-  const dryGain = audioContext.createGain();
-  dryGain.connect(audioContext.destination);
-
-  // Since the convolver node is created asynchronously,
-  // use a gain node as an input that can be connected to before the convolver is created.
-  const wetInputGain = audioContext.createGain();
-  wetInputGain.gain.value = 1;
-
-  const wetGain = audioContext.createGain();
-  wetGain.connect(audioContext.destination);
-
-  createConvolver(audioContext).then((convolverNode) => {
-    convolverNode.connect(wetGain);
-    wetInputGain.connect(convolverNode);
-    console.log('AmbientVibe: Convolver created and connected');
-  });
-
-  const mediaElementObserver = new MutationObserver(() => {
-    // Re-check media elements when DOM changes
-    updateSourceNodes();
-  });
+  let currentPresetKey = 'studioRoom';
 
   const rootElementObserver = new MutationObserver((mutations) => {
     if (
@@ -148,67 +127,45 @@
       mediaElement[captureFunction]();
       return true;
     } catch (error) {
-      // It's probably cross-origin
       return false;
     }
   };
 
   const updateSourceNodes = () => {
     if (!audioContextInitialized) {
-      console.log('AmbientVibe: AudioContext not initialized, skipping source node update');
       return;
     }
-
     const currentMediaElements = getMediaElements();
-
-    // If the mediaElement is no longer in the DOM,
-    // disconnect its source node and stop tracking it.
-    // MutationObserver will automatically stop watching it.
     mediaElementSourceNodes = mediaElementSourceNodes.filter(
       (sourceNode) =>
-        currentMediaElements.includes(sourceNode.mediaElement) || // TODO O(n^2)
-        sourceNode.disconnect() // returns undefined
+        currentMediaElements.includes(sourceNode.mediaElement) || sourceNode.disconnect()
     );
-
     mediaElementSourceNodes = currentMediaElements.map((mediaElement) => {
       let sourceNode = mediaElementSourceNodes.find(
-        (sourceNode) => sourceNode.mediaElement === mediaElement // TODO O(n^2)
+        (sourceNode) => sourceNode.mediaElement === mediaElement
       );
       if (sourceNode) {
         return sourceNode;
       }
-
       if (isCaptureSupported(mediaElement)) {
         try {
           sourceNode = audioContext.createMediaElementSource(mediaElement);
           sourceNode.connect(dryGain);
           sourceNode.connect(wetInputGain);
-          console.log('AmbientVibe: Connected audio source for', mediaElement.tagName);
         } catch (error) {
-          console.error('AmbientVibe: Failed to create media source:', error);
           sourceNode = {
             mediaElement,
-            disconnect: () => {
-              /* noop */
-            },
-            connect: () => {
-              /* noop */
-            },
+            disconnect: () => {},
+            connect: () => {},
           };
         }
       } else {
         sourceNode = {
           mediaElement,
-          disconnect: () => {
-            /* noop */
-          },
-          connect: () => {
-            /* noop */
-          },
+          disconnect: () => {},
+          connect: () => {},
         };
-        console.log('AmbientVibe: Capture not supported for', mediaElement.tagName);
       }
-
       const rootEl = findRootElement(mediaElement);
       rootElementObserver.observe(rootEl, {
         subtree: true,
@@ -218,51 +175,65 @@
     });
   };
 
-  const updateReverbWetMix = (newReverbWetMix) => {
-    settings.reverbWetMix = newReverbWetMix;
-    if (!settings.isEnabled) {
-      dryGain.gain.value = 1;
-      wetGain.gain.value = 0;
-      return;
+  const updateReverbWetMix = (wetMix) => {
+    wetGain.gain.value = wetMix;
+    dryGain.gain.value = 1 - wetMix;
+  };
+
+  const updateConvolver = async () => {
+    if (convolverNode) {
+      convolverNode.disconnect();
     }
-    dryGain.gain.value = 1 - newReverbWetMix;
-    wetGain.gain.value = newReverbWetMix;
-    console.log(
-      'AmbientVibe: Reverb mix updated - Dry:',
-      (1 - newReverbWetMix).toFixed(2),
-      'Wet:',
-      newReverbWetMix.toFixed(2)
-    );
+    const preset = presets[currentPresetKey];
+    convolverNode = await createConvolver(audioContext, preset.ir);
+    wetInputGain.disconnect();
+    wetInputGain.connect(convolverNode);
+    convolverNode.connect(wetGain);
+    dryGain.gain.value = preset.dry;
+    wetGain.gain.value = preset.wet;
   };
 
   const updateEnabled = (enabled) => {
     settings.isEnabled = enabled;
-    updateReverbWetMix(settings.reverbWetMix);
-    if (enabled) {
-      updateSourceNodes();
+    if (!enabled) {
+      // Tüm bağlantıları kes, sadece dryGain'e bağla
+      try {
+        wetInputGain.disconnect();
+        wetGain.disconnect();
+        if (convolverNode) convolverNode.disconnect();
+      } catch (e) {}
+      dryGain.gain.value = 1;
+    } else {
+      // Zinciri tekrar kur
+      try {
+        wetInputGain.disconnect();
+        if (convolverNode) convolverNode.disconnect();
+      } catch (e) {}
+      if (convolverNode) {
+        wetInputGain.connect(convolverNode);
+        convolverNode.connect(wetGain);
+      }
+      wetGain.connect(audioContext.destination);
+      dryGain.gain.value = presets[currentPresetKey].dry;
+      wetGain.gain.value = presets[currentPresetKey].wet;
     }
-    console.log('AmbientVibe: Effect', enabled ? 'enabled' : 'disabled');
   };
 
-  // Initialize - wait for user interaction before processing
+  updateConvolver();
   updateReverbWetMix(settings.reverbWetMix);
 
-  // Listen for messages from popup
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    console.log('AmbientVibe: Received message:', request);
-
     try {
       switch (request.action) {
         case 'setPreset':
-          const preset = presets[request.preset];
-          if (preset) {
-            updateReverbWetMix(preset.reverbWetMix);
-            console.log(
-              'AmbientVibe: Preset changed to',
-              request.preset,
-              'wet mix:',
-              preset.reverbWetMix
-            );
+          if (presets[request.preset]) {
+            currentPresetKey = request.preset;
+            // Preset intensity'yi uygula
+            const preset = presets[request.preset];
+            dryGain.gain.value = preset.dry;
+            wetGain.gain.value = preset.wet;
+            settings.reverbWetMix = preset.wet;
+            updateConvolver();
           }
           break;
         case 'toggleEnabled':
@@ -273,11 +244,10 @@
           if (typeof request.intensity === 'number') {
             const wetMix = request.intensity / 100;
             updateReverbWetMix(wetMix);
-            console.log('AmbientVibe: Intensity updated to', request.intensity + '%');
+            settings.reverbWetMix = wetMix;
           }
           break;
         default:
-          console.log('AmbientVibe: Unknown action:', request.action);
           break;
       }
       sendResponse({
@@ -285,36 +255,39 @@
         state: { isEnabled: settings.isEnabled, reverbWetMix: settings.reverbWetMix },
       });
     } catch (error) {
-      console.error('AmbientVibe: Error handling message:', error);
       sendResponse({ success: false, error: error.message });
     }
-    return true; // Keep message channel open for async response
+    return true;
   });
 
-  // Initial processing
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'setPreset' && presets[request.preset]) {
+      currentPresetKey = request.preset;
+      updateConvolver();
+      sendResponse({ success: true });
+      return true;
+    }
+  });
+
   updateSourceNodes();
 
-  // Add global click listener to help with audio context initialization
   document.addEventListener(
     'click',
     () => {
       if (audioContext.state !== 'running') {
         audioContext.resume();
       }
-      // Re-process media elements on user interaction
       updateSourceNodes();
     },
     { once: false }
   );
 
-  // Also try when page becomes visible
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
       updateSourceNodes();
     }
   });
 
-  // Watch for dynamically added media elements
   const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
       if (mutation.addedNodes.length) {
@@ -327,8 +300,4 @@
     childList: true,
     subtree: true,
   });
-
-  console.log('AmbientVibe: Content script initialized and ready');
-  console.log('AmbientVibe: AudioContext state:', audioContext.state);
-  console.log('AmbientVibe: Initial media elements found:', getMediaElements().length);
 })();

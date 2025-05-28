@@ -4,7 +4,6 @@ const reverbSlider = document.getElementById('reverb-slider');
 const reverbValue = document.getElementById('reverb-value');
 const themeToggle = document.getElementById('theme-toggle');
 const onoffToggle = document.getElementById('onoff-toggle');
-const closeBtn = document.querySelector('.close-btn');
 const controlsArea = document.getElementById('controls-area');
 const presetForm = document.getElementById('preset-form');
 
@@ -115,6 +114,8 @@ presetRadios.forEach((radio) => {
   radio.addEventListener('change', async () => {
     currentPreset = radio.value;
     reverbIntensity = presetDefaults[currentPreset];
+    reverbSlider.value = reverbIntensity;
+    reverbValue.textContent = reverbIntensity + '%';
     updateUI();
     saveSettings();
     await sendSettingsToContentScript();
@@ -127,7 +128,6 @@ reverbSlider.addEventListener('input', async () => {
   await sendIntensityUpdate();
 });
 
-// Also save when slider changes are finished
 reverbSlider.addEventListener('change', () => {
   saveSettings();
 });
@@ -141,10 +141,8 @@ themeToggle.addEventListener('change', () => {
 onoffToggle.addEventListener('change', async () => {
   isOn = onoffToggle.checked;
   if (!isOn) {
-    // Tüm presetleri untick et
     presetRadios.forEach((radio) => (radio.checked = false));
   } else {
-    // Açınca eski preset seçili olsun
     presetRadios.forEach((radio) => {
       radio.checked = radio.value === currentPreset;
     });
@@ -160,11 +158,6 @@ presetForm.addEventListener('submit', async (e) => {
   await sendSettingsToContentScript();
 });
 
-closeBtn.addEventListener('click', () => {
-  window.close();
-});
-
-// Başlangıçta yükle
 loadSettings();
 
 // Send initial settings to content script when popup opens
