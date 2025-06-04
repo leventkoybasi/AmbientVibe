@@ -1,6 +1,10 @@
 # AmbientVibe
 
-![AmbientVibe Logo](images/ambientvibe.png)
+[![Get it on Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Live%20Extension-brightgreen?logo=googlechrome)](https://chromewebstore.google.com/detail/ambientvibe/menfohimagklbbmfcmhpfalgpjmijaij)
+
+![Main Desing 01](images/Main%20Desing%2001.jpg)
+![Main Desing 02](images/Main%20Desing%2002.jpg)
+![Main Desing 03](images/Main%20Desing%2003.jpg)
 
 **Modern Chrome extension that adds high-quality ambient reverb effects to web audio**
 
