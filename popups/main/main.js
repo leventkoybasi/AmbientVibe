@@ -8,23 +8,24 @@ const controlsArea = document.getElementById('controls-area');
 const presetForm = document.getElementById('preset-form');
 
 // State
-let currentPreset = 'smallRoom';
+let currentPreset = 'intimateRoom';
 let reverbIntensity = 50;
 let isLightTheme = false;
 let isOn = true;
 
 // Preset default values
 const presetDefaults = {
-  smallRoom: 20,
-  largeRoom: 40,
-  concertHall: 70,
-  ambientWash: 90,
-  moonlightChamber: 60,
+  intimateRoom: 20,
+  studioRoom: 40,
+  grandHall: 70,
+  lushPlate: 90,
+  velvetChamber: 60,
 };
 
 // Load settings from storage
-function loadSettings() {
-  const settings = JSON.parse(localStorage.getItem('ambientVibeSettings')) || {};
+async function loadSettings() {
+  const result = await chrome.storage.local.get('ambientVibeSettings');
+  const settings = result.ambientVibeSettings || {};
   if (settings.preset) {
     currentPreset = settings.preset;
   }
@@ -63,7 +64,7 @@ function saveSettings() {
     theme: isLightTheme ? 'light' : 'dark',
     on: isOn,
   };
-  localStorage.setItem('ambientVibeSettings', JSON.stringify(settings));
+  chrome.storage.local.set({ ambientVibeSettings: settings });
 }
 
 // Send settings to content script
@@ -158,10 +159,8 @@ presetForm.addEventListener('submit', async (e) => {
   await sendSettingsToContentScript();
 });
 
-loadSettings();
-
-// Send initial settings to content script when popup opens
-setTimeout(async () => {
+// Load settings then send to content script when popup opens
+loadSettings().then(async () => {
   await sendSettingsToContentScript();
   console.log('AmbientVibe: Initial settings sent to content script');
-}, 100);
+});
