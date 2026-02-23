@@ -219,8 +219,27 @@
     }
   };
 
-  updateConvolver();
-  updateReverbWetMix(settings.reverbWetMix);
+  // Load saved settings from chrome.storage.local on startup
+  chrome.storage.local.get('ambientVibeSettings', (result) => {
+    const saved = result.ambientVibeSettings;
+    if (saved) {
+      if (saved.preset && presets[saved.preset]) {
+        currentPresetKey = saved.preset;
+      }
+      if (saved.reverb !== undefined) {
+        settings.reverbWetMix = saved.reverb / 100;
+      }
+      if (saved.on === false) {
+        settings.isEnabled = false;
+      }
+    }
+    updateConvolver().then(() => {
+      updateReverbWetMix(settings.reverbWetMix);
+      if (!settings.isEnabled) {
+        updateEnabled(false);
+      }
+    });
+  });
 
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     try {
@@ -258,15 +277,6 @@
       sendResponse({ success: false, error: error.message });
     }
     return true;
-  });
-
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'setPreset' && presets[request.preset]) {
-      currentPresetKey = request.preset;
-      updateConvolver();
-      sendResponse({ success: true });
-      return true;
-    }
   });
 
   updateSourceNodes();
